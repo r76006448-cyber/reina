@@ -292,8 +292,8 @@
       </button>
     </nav>
 
-    <!-- REAL CAMERA / FILE SCANNER MODAL -->
-    <div id="qrModal" class="hidden absolute inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center p-4 text-white space-y-3">
+    <!-- REAL CAMERA / FILE SCANNER MODAL (SIMULATION BUTTONS REMOVED) -->
+    <div id="qrModal" class="hidden absolute inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center p-4 text-white space-y-4">
       <div class="relative w-64 h-64 border-4 border-teal-400 rounded-2xl overflow-hidden bg-slate-950 flex flex-col items-center justify-center shadow-2xl space-y-2">
         <!-- ライブカメラ映像 -->
         <video id="cameraVideo" class="w-full h-full object-cover hidden" playsinline></video>
@@ -307,21 +307,13 @@
 
       <div class="w-full max-w-xs space-y-2 text-center">
         <!-- 本物のカメラ撮影 / 画像ファイル読み取り用ボタン -->
-        <label class="block w-full bg-teal-600 hover:bg-teal-500 text-white py-3 rounded-xl font-bold text-xs cursor-pointer shadow-lg transition">
-          <i class="fa-solid fa-camera mr-1"></i> カメラでQRコードを撮影・選択
+        <label class="block w-full bg-teal-600 hover:bg-teal-500 text-white py-3.5 px-4 rounded-xl font-bold text-sm cursor-pointer shadow-lg transition">
+          <i class="fa-solid fa-camera mr-1.5"></i> カメラでQRコードを撮影・選択
           <input type="file" accept="image/*" capture="environment" class="hidden" onchange="handleQrImageUpload(event)">
         </label>
-
-        <p class="text-[10px] text-slate-400">※またはワンタップテスト用ボタン:</p>
-
-        <div class="grid grid-cols-3 gap-1.5 pt-1">
-          <button type="button" onclick="simulateScanResult('suzuki')" class="bg-emerald-800 hover:bg-emerald-700 text-white py-2 rounded text-[10px] font-bold cursor-pointer">1. 鈴木様</button>
-          <button type="button" onclick="simulateScanResult('yamamoto')" class="bg-amber-800 hover:bg-amber-700 text-white py-2 rounded text-[10px] font-bold cursor-pointer">2. 山本様</button>
-          <button type="button" onclick="simulateScanResult('tanaka')" class="bg-rose-800 hover:bg-rose-700 text-white py-2 rounded text-[10px] font-bold cursor-pointer">3. 田中様 (赤)</button>
-        </div>
       </div>
 
-      <button type="button" onclick="closeQRModal()" class="text-xs text-slate-400 underline pt-1 cursor-pointer">閉じる</button>
+      <button type="button" onclick="closeQRModal()" class="text-xs text-slate-400 underline pt-2 cursor-pointer">閉じる</button>
     </div>
 
   </div>
@@ -551,11 +543,6 @@
       if (placeholder) placeholder.classList.remove('hidden');
 
       document.getElementById('qrModal').classList.add('hidden');
-    }
-
-    function simulateScanResult(key) {
-      selectResident(key);
-      closeQRModal();
     }
 
     function directToMedicationCheck(key) {
