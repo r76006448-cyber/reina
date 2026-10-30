@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <!-- QRスキャン解析ライブラリ -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -141,12 +143,12 @@
             <h2 class="font-bold text-base text-slate-800 flex items-center gap-2">
               <i class="fa-solid fa-qrcode text-teal-600"></i> 利用者 QR照会
             </h2>
-            <span class="bg-teal-100 text-teal-800 text-[11px] font-bold px-2 py-0.5 rounded-full">高速シミュレーション</span>
+            <span class="bg-teal-100 text-teal-800 text-[11px] font-bold px-2 py-0.5 rounded-full">カメラ機能対応</span>
           </div>
           
           <button type="button" onclick="openQRModal()" class="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md hover:opacity-95 active:scale-[0.98] transition flex items-center justify-center space-x-2 text-base cursor-pointer">
             <i class="fa-solid fa-qrcode text-xl"></i>
-            <span>QRスキャンシミュレータ起動</span>
+            <span>QRスキャン機能起動</span>
           </button>
         </div>
 
@@ -237,12 +239,9 @@
               <p>・<strong>対応スタッフ:</strong> <span id="reportStaff">渡辺 (新人)</span></p>
               <p>・<strong>服薬確認状況:</strong> <span id="reportMedStatus" class="font-bold text-emerald-700">3名中 0名 チェック完了</span></p>
               
-              <!-- 未チェック者のみ表示（タップで直接お薬チェックへ移動） -->
               <div>
                 <p class="font-bold text-slate-800 mb-1">・未チェック利用者の服薬へ進む（タップで自動照会）:</p>
-                <div id="unverifiedListContainer" class="grid grid-cols-3 gap-1.5 mb-2">
-                  <!-- JSで動的生成 -->
-                </div>
+                <div id="unverifiedListContainer" class="grid grid-cols-3 gap-1.5 mb-2"></div>
               </div>
 
               <div>
@@ -293,21 +292,32 @@
       </button>
     </nav>
 
-    <!-- SIMULATED QR SCANNER MODAL (No Camera Permission Needed) -->
+    <!-- REAL CAMERA / FILE SCANNER MODAL -->
     <div id="qrModal" class="hidden absolute inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center p-4 text-white space-y-3">
       <div class="relative w-64 h-64 border-4 border-teal-400 rounded-2xl overflow-hidden bg-slate-950 flex flex-col items-center justify-center shadow-2xl space-y-2">
-        <div class="scan-line absolute top-0 left-0 w-full h-1 bg-teal-400 shadow-[0_0_15px_#2dd4bf]"></div>
-        <i class="fa-solid fa-qrcode text-6xl text-teal-500 animate-pulse"></i>
-        <p class="text-xs text-teal-300 font-bold">QRコード照合中...</p>
+        <!-- ライブカメラ映像 -->
+        <video id="cameraVideo" class="w-full h-full object-cover hidden" playsinline></video>
+        <canvas id="qrCanvas" class="hidden"></canvas>
+        <div id="scanPlaceholder" class="flex flex-col items-center space-y-2">
+          <div class="scan-line absolute top-0 left-0 w-full h-1 bg-teal-400 shadow-[0_0_15px_#2dd4bf]"></div>
+          <i class="fa-solid fa-camera text-5xl text-teal-500 animate-pulse"></i>
+          <p class="text-xs text-teal-300 font-bold" id="scanStatusText">カメラ起動準備中...</p>
+        </div>
       </div>
 
-      <p class="text-xs text-slate-300 font-bold text-center">スキャン対象を選択してください</p>
+      <div class="w-full max-w-xs space-y-2 text-center">
+        <!-- 本物のカメラ撮影 / 画像ファイル読み取り用ボタン -->
+        <label class="block w-full bg-teal-600 hover:bg-teal-500 text-white py-3 rounded-xl font-bold text-xs cursor-pointer shadow-lg transition">
+          <i class="fa-solid fa-camera mr-1"></i> カメラでQRコードを撮影・選択
+          <input type="file" accept="image/*" capture="environment" class="hidden" onchange="handleQrImageUpload(event)">
+        </label>
 
-      <div class="border-t border-slate-800 pt-3 w-full max-w-xs space-y-1">
-        <div class="grid grid-cols-3 gap-1.5">
-          <button type="button" onclick="simulateScanResult('suzuki')" class="bg-emerald-700 hover:bg-emerald-600 text-white py-2 rounded text-[11px] font-bold cursor-pointer">1. 鈴木様</button>
-          <button type="button" onclick="simulateScanResult('yamamoto')" class="bg-amber-700 hover:bg-amber-600 text-white py-2 rounded text-[11px] font-bold cursor-pointer">2. 山本様</button>
-          <button type="button" onclick="simulateScanResult('tanaka')" class="bg-rose-700 hover:bg-rose-600 text-white py-2 rounded text-[11px] font-bold cursor-pointer">3. 田中様</button>
+        <p class="text-[10px] text-slate-400">※またはワンタップテスト用ボタン:</p>
+
+        <div class="grid grid-cols-3 gap-1.5 pt-1">
+          <button type="button" onclick="simulateScanResult('suzuki')" class="bg-emerald-800 hover:bg-emerald-700 text-white py-2 rounded text-[10px] font-bold cursor-pointer">1. 鈴木様</button>
+          <button type="button" onclick="simulateScanResult('yamamoto')" class="bg-amber-800 hover:bg-amber-700 text-white py-2 rounded text-[10px] font-bold cursor-pointer">2. 山本様</button>
+          <button type="button" onclick="simulateScanResult('tanaka')" class="bg-rose-800 hover:bg-rose-700 text-white py-2 rounded text-[10px] font-bold cursor-pointer">3. 田中様 (赤)</button>
         </div>
       </div>
 
@@ -370,6 +380,8 @@
       timeline: []
     };
 
+    let cameraStream = null;
+    let videoScanAnim = null;
     let holdTimer = null;
     let holdStartTime = 0;
     const HOLD_DURATION = 3000;
@@ -440,16 +452,115 @@
       renderResidentDetail();
     }
 
-    // 未チェック者を押したら直接「お薬チェック（②服薬）」へ飛ぶ処理
+    function processScannedQRText(qrText) {
+      let foundKey = null;
+      for (const [key, res] of Object.entries(appState.residents)) {
+        if (qrText.includes(res.id) || qrText.includes(key)) {
+          foundKey = key;
+          break;
+        }
+      }
+
+      if (foundKey) {
+        playBeepSound('success');
+        selectResident(foundKey);
+        closeQRModal();
+      } else {
+        alert("該当する利用者IDが見つかりませんでした。\n読み取ったID: " + qrText);
+      }
+    }
+
+    function handleQrImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0, img.width, img.height);
+
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+          if (code) {
+            processScannedQRText(code.data);
+          } else {
+            alert("QRコードが検出できませんでした。画像を拡大するか正面から撮影してください。");
+          }
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function openQRModal() {
+      document.getElementById('qrModal').classList.remove('hidden');
+      const video = document.getElementById('cameraVideo');
+      const statusText = document.getElementById('scanStatusText');
+      const placeholder = document.getElementById('scanPlaceholder');
+
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }
+        });
+        video.srcObject = cameraStream;
+        video.setAttribute("playsinline", true);
+        video.play();
+        video.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        scanVideoFrame();
+      } catch (err) {
+        console.log("Camera access error:", err);
+        statusText.textContent = "カメラボタンからQR画像を撮影してください";
+      }
+    }
+
+    function scanVideoFrame() {
+      const video = document.getElementById('cameraVideo');
+      const canvas = document.getElementById('qrCanvas');
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+        if (code) {
+          processScannedQRText(code.data);
+          return;
+        }
+      }
+      videoScanAnim = requestAnimationFrame(scanVideoFrame);
+    }
+
+    function closeQRModal() {
+      if (videoScanAnim) cancelAnimationFrame(videoScanAnim);
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+      const video = document.getElementById('cameraVideo');
+      if (video) video.classList.add('hidden');
+      const placeholder = document.getElementById('scanPlaceholder');
+      if (placeholder) placeholder.classList.remove('hidden');
+
+      document.getElementById('qrModal').classList.add('hidden');
+    }
+
+    function simulateScanResult(key) {
+      selectResident(key);
+      closeQRModal();
+    }
+
     function directToMedicationCheck(key) {
       selectResident(key);
       switchTab('tab-medication');
-    }
-
-    function resetQRScan() {
-      appState.activeResidentKey = null;
-      document.getElementById('bannerResidentName').textContent = '未照合（QRコードを読み込んでください）';
-      renderResidentDetail();
     }
 
     function renderResidentDetail() {
@@ -464,7 +575,7 @@
               <i class="fa-solid fa-qrcode"></i>
             </div>
             <p class="font-bold text-slate-600 text-sm">QRコードが照合されていません</p>
-            <p class="text-xs text-slate-400">上のボタンでQRコードを照合してください。</p>
+            <p class="text-xs text-slate-400">上のボタンでQRコードをスキャンしてください。</p>
           </div>
         `;
         return;
@@ -530,19 +641,6 @@
           </div>
         </div>
       `;
-    }
-
-    function openQRModal() {
-      document.getElementById('qrModal').classList.remove('hidden');
-    }
-
-    function closeQRModal() {
-      document.getElementById('qrModal').classList.add('hidden');
-    }
-
-    function simulateScanResult(key) {
-      selectResident(key);
-      closeQRModal();
     }
 
     function syncMedicationTab() {
@@ -819,7 +917,6 @@
         medStatusElem.textContent = `3名中 ${verifiedCount}名 チェック完了 (誤薬 0件)`;
       }
 
-      // 未チェックの利用者のみ表示し、タップで直接「お薬チェック」画面へ自動移動
       if (unverifiedContainer) {
         const unverifiedResidents = Object.entries(appState.residents).filter(([key, res]) => !res.medVerified);
 
