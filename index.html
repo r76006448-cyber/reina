@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>介護のミカタ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <style>
+    body { font-family: sans-serif; background-color: #0f172a; user-select: none; -webkit-user-select: none; }
+    .mobile-screen { width: 100%; max-width: 440px; height: 100vh; margin: 0 auto; background: #f8fafc; display: flex; flex-direction: column; overflow: hidden; }
+    .tab-content { flex: 1; overflow-y: auto; }
+    @keyframes scannerPulse { 0% { transform: translateY(-100%); } 50% { transform: translateY(100%); } 100% { transform: translateY(-100%); } }
+    .scan-line { animation: scannerPulse 2s infinite linear; }
+    .prevent-ios-select {
+      -webkit-touch-callout: none !important;
+      -webkit-user-select: none !important;
+      user-select: none !important;
+      touch-action: none !important;
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+  <div id="appScreen" class="mobile-screen text-slate-800">
+
+    <!-- HEADER -->
+    <header class="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shrink-0">
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold"><i class="fa-solid fa-heart-pulse"></i></div>
+        <div>
+          <h1 class="font-bold text-sm text-teal-400">介護のミカタ</h1>
+          <p class="text-[10px] text-slate-400">鳥取エリアモード</p>
+        </div>
+      </div>
+      <select id="staffSelector" onchange="changeStaffRole()" class="bg-slate-800 text-xs text-teal-300 border border-slate-700 rounded-lg px-2 py-1.5">
+        <option value="渡辺 (新人)">👤 渡辺 (新人)</option>
+        <option value="佐藤 (ベテラン)">⭐ 佐藤 (ベテラン)</option>
+      </select>
+    </header>
+
+    <!-- BANNER -->
+    <div class="bg-teal-700 text-white px-4 py-2 flex items-center justify-between shrink-0">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-circle-user text-teal-200 text-xl"></i>
+        <div>
+          <span class="text-xs text-teal-200">現在の照合利用者:</span>
+          <p class="font-bold text-sm leading-none" id="bannerResidentName">未照合（QRコードをかざしてください）</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <main class="tab-content bg-slate-50 p-4 space-y-4">
+
+      <!-- TAB 1: PROFILE & QR SCAN -->
+      <section id="tab-profile" class="tab-pane space-y-4">
+        <div id="qrScanArea" class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="font-bold text-base text-slate-800 flex items-center gap-2"><i class="fa-solid fa-qrcode text-teal-600"></i> 利用者 QR照会</h2>
+            <span class="bg-teal-100 text-teal-800 text-[11px] font-bold px-2 py-0.5 rounded-full">リアルタイム自動照合</span>
+          </div>
+          <button type="button" onclick="openQRModal()" class="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white font-bold py-3.5 px-4 rounded-xl shadow transition flex items-center justify-center space-x-2 text-base">
+            <i class="fa-solid fa-camera text-xl"></i><span>カメラで自動スキャン起動</span>
+          </button>
+        </div>
+        <div id="residentDetailCard" class="space-y-3"></div>
+      </section>
+
+      <!-- TAB 2: MEDICATION CHECK -->
+      <section id="tab-medication" class="tab-pane hidden space-y-4">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h2 class="font-bold text-base text-slate-800 flex items-center gap-2"><i class="fa-solid fa-pills text-teal-600"></i> お薬3秒長押しチェック</h2>
+            <span class="bg-amber-100 text-amber-800 text-[11px] font-bold px-2 py-0.5 rounded-full">誤薬防止</span>
+          </div>
+          <div id="medicationContent"></div>
+        </div>
+      </section>
+
+      <!-- TAB 3: VOICE MEMO -->
+      <section id="tab-memo" class="tab-pane hidden space-y-4">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
+          <h2 class="font-bold text-base text-slate-800 border-b border-slate-100 pb-2"><i class="fa-solid fa-microphone text-teal-600"></i> 現場メモ入力</h2>
+          <div class="relative">
+            <textarea id="memoInput" oninput="updateAiAnalysis()" rows="3" class="w-full text-xs p-3 border border-slate-300 rounded-xl" placeholder="音声ボタンを押すかテキスト入力..."></textarea>
+            <button id="voiceBtn" onclick="toggleVoiceInput()" class="absolute right-3 bottom-3 w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center"><i class="fa-solid fa-microphone"></i></button>
+          </div>
+          <div class="bg-slate-900 text-white rounded-xl p-3 space-y-2 text-xs">
+            <div class="flex justify-between text-teal-400 font-bold border-b border-slate-800 pb-1">
+              <span>🤖 AI要約・自動抽出</span><span id="aiRiskBadge" class="bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded">正常</span>
+            </div>
+            <p id="aiSummaryText" class="text-slate-300 text-[11px]">要約結果がここに表示されます...</p>
+          </div>
+          <button onclick="saveNoteToTimeline()" class="w-full bg-teal-600 text-white font-bold py-3 rounded-xl text-xs"><i class="fa-solid fa-floppy-disk"></i> タイムライン日報へ保存</button>
+        </div>
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
+          <h3 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-clock-rotate-left text-teal-600"></i> 記録タイムライン</h3>
+          <div id="timelineContainer" class="space-y-3 max-h-60 overflow-y-auto"></div>
+        </div>
+      </section>
+
+      <!-- TAB 4: DAILY REPORT -->
+      <section id="tab-report" class="tab-pane hidden space-y-4">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3 text-xs">
+          <h2 class="font-bold text-base text-slate-800 border-b border-slate-100 pb-2"><i class="fa-solid fa-file-invoice text-teal-600"></i> Web日報</h2>
+          <p>・スタッフ: <span id="reportStaff">渡辺 (新人)</span></p>
+          <p>・服薬チェック: <span id="reportMedStatus" class="font-bold text-emerald-700">3名中 0名 完了</span></p>
+          <div>
+            <p class="font-bold mb-1">・未チェック利用者の服薬へ進む:</p>
+            <div id="unverifiedListContainer" class="grid grid-cols-3 gap-1.5 mb-2"></div>
+          </div>
+          <div>
+            <p class="font-bold">・申し送り履歴:</p>
+            <div id="reportHandover" class="mt-1 bg-white p-2 rounded border border-slate-200 max-h-40 overflow-y-auto">記録なし</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- NAV BAR -->
+    <nav class="bg-white border-t border-slate-200 px-2 py-2 grid grid-cols-4 gap-1 shrink-0">
+      <button onclick="switchTab('tab-profile')" id="nav-tab-profile" class="nav-btn flex flex-col items-center py-1 text-teal-600 font-bold"><i class="fa-solid fa-qrcode text-lg"></i><span class="text-[10px]">① 照会</span></button>
+      <button onclick="switchTab('tab-medication')" id="nav-tab-medication" class="nav-btn flex flex-col items-center py-1 text-slate-400"><i class="fa-solid fa-pills text-lg"></i><span class="text-[10px]">② 服薬</span></button>
+      <button onclick="switchTab('tab-memo')" id="nav-tab-memo" class="nav-btn flex flex-col items-center py-1 text-slate-400"><i class="fa-solid fa-microphone text-lg"></i><span class="text-[10px]">③ 記録</span></button>
+      <button onclick="switchTab('tab-report')" id="nav-tab-report" class="nav-btn flex flex-col items-center py-1 text-slate-400"><i class="fa-solid fa-file-invoice text-lg"></i><span class="text-[10px]">④ 日報</span></button>
+    </nav>
+
+    <!-- QR AUTO-SCAN MODAL -->
+    <div id="qrModal" class="hidden absolute inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center p-4 text-white space-y-4">
+      <div class="relative w-72 h-72 border-4 border-teal-400 rounded-2xl overflow-hidden bg-slate-950 flex flex-col items-center justify-center shadow-2xl">
+        <video id="cameraVideo" class="w-full h-full object-cover hidden" playsinline muted></video>
+        <canvas id="qrCanvas" class="hidden"></canvas>
+        <div id="scanPlaceholder" class="flex flex-col items-center space-y-2">
+          <div class="scan-line absolute top-0 left-0 w-full h-1 bg-teal-400 shadow-[0_0_15px_#2dd4bf]"></div>
+          <i class="fa-solid fa-camera text-5xl text-teal-500 animate-pulse"></i>
+          <p class="text-xs text-teal-300 font-bold" id="scanStatusText">カメラにQRコードをかざしてください</p>
+        </div>
+      </div>
+      <p class="text-xs text-slate-300 text-center">枠内にQRコードを入れると自動で記録画面へ移動します</p>
+      <button type="button" onclick="closeQRModal()" class="text-xs text-slate-400 underline pt-2">閉じる</button>
+    </div>
+
+  </div>
+
+  <script>
+    let appState = {
+      currentStaff: "渡辺 (新人)",
+      activeResidentKey: null,
+      residents: {
+        suzuki: { id: "RES-1024-QR", name: "鈴木 一郎 様", shortName: "鈴木様", age: 79, careLevel: "要介護1", prescription: "朝食後薬 (1種類 / 整腸剤)", wisdomNote: "ご自身でスムーズに服用できます。", allergies: ["特になし"], riskLevel: "green", badgeLabel: "🟢 正常", medVerified: false },
+        yamamoto: { id: "RES-4019-QR", name: "山本 勝 様", shortName: "山本様", age: 82, careLevel: "要介護2", prescription: "朝食後薬 (2種類 / 血液サラサラ薬)", wisdomNote: "正面からゆっくりハッキリ話すと安心されます。", allergies: ["ふらつき注意"], riskLevel: "yellow", badgeLabel: "⚠️ 注意", medVerified: false },
+        tanaka: { id: "RES-8821-QR", name: "田中 ハナ 様", shortName: "田中様", age: 87, careLevel: "要介護3", prescription: "朝食後薬 (3種類 / 降圧剤・胃薬)", wisdomNote: "右側から優しくお声がけするとスムーズです。", allergies: ["ペニシリン系アレルギー", "嚥下注意"], riskLevel: "red", badgeLabel: "🚨 重度", medVerified: false }
+      },
+      timeline: []
+    };
+
+    let cameraStream = null, scanTimer = null, isProcessing = false;
+
+    window.onload = function() { renderResidentDetail(); renderTimeline(); };
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+      const targetPane = document.getElementById(tabId);
+      if (targetPane) targetPane.classList.remove('hidden');
+
+      document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('text-teal-600', 'font-bold'); b.classList.add('text-slate-400'); });
+      const nav = document.getElementById('nav-' + tabId);
+      if (nav) { nav.classList.remove('text-slate-400'); nav.classList.add('text-teal-600', 'font-bold'); }
+
+      if (tabId === 'tab-medication') syncMedicationTab();
+      if (tabId === 'tab-report') generateDailyReport();
+    }
+
+    function changeStaffRole() { appState.currentStaff = document.getElementById('staffSelector').value; renderResidentDetail(); }
+    
+    function selectResident(key) { 
+      appState.activeResidentKey = key; 
+      const res = appState.residents[key]; 
+      const banner = document.getElementById('bannerResidentName');
+      if (banner && res) {
+        banner.textContent = `${res.name} (${res.age}歳 / ${res.careLevel})`;
+      }
+      renderResidentDetail(); 
+    }
+
+    function processScannedQRText(qrText) {
+      if (isProcessing) return;
+      
+      let foundKey = Object.keys(appState.residents).find(k => qrText.includes(appState.residents[k].id) || qrText.includes(k));
+      if (foundKey) {
+        isProcessing = true;
+        selectResident(foundKey);
+        closeQRModal();
+        
+        // 非同期タイマーを挟んで確実にカメラ停止・モーダル非表示処理のあとに記録タブへ移動させる
+        setTimeout(() => {
+          switchTab('tab-memo');
+          if (navigator.vibrate) navigator.vibrate(100);
+        }, 150);
+      }
+    }
+
+    async function openQRModal() {
+      isProcessing = false;
+      document.getElementById('qrModal').classList.remove('hidden');
+      const video = document.getElementById('cameraVideo');
+      const statusText = document.getElementById('scanStatusText');
+      const placeholder = document.getElementById('scanPlaceholder');
+
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        }).catch(() => {
+          return navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        });
+
+        video.srcObject = cameraStream;
+        video.setAttribute("playsinline", true);
+        await video.play();
+        video.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+
+        if (scanTimer) clearInterval(scanTimer);
+        scanTimer = setInterval(scanCameraFrame, 100);
+      } catch (err) {
+        statusText.textContent = "カメラ起動失敗。ブラウザのカメラ許可を確認してください。";
+      }
+    }
+
+    function scanCameraFrame() {
+      if (isProcessing) return;
+      const video = document.getElementById('cameraVideo');
+      const canvas = document.getElementById('qrCanvas');
+      if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "attemptBoth",
+        });
+
+        if (code && code.data) {
+          processScannedQRText(code.data);
+        }
+      }
+    }
+
+    function closeQRModal() {
+      if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+      }
+      document.getElementById('cameraVideo').classList.add('hidden');
+      document.getElementById('scanPlaceholder').classList.remove('hidden');
+      document.getElementById('qrModal').classList.add('hidden');
+    }
+
+    function renderResidentDetail() {
+      const cardContainer = document.getElementById('residentDetailCard'), scanArea = document.getElementById('qrScanArea');
+      if (!appState.activeResidentKey) {
+        if (scanArea) scanArea.classList.remove('hidden');
+        cardContainer.innerHTML = `<div class="bg-slate-100 rounded-2xl p-6 text-center border-2 border-dashed border-slate-300"><p class="font-bold text-slate-600 text-sm">QRコードが照合されていません</p></div>`;
+        return;
+      }
+      if (scanArea) scanArea.classList.add('hidden');
+      const res = appState.residents[appState.activeResidentKey];
+      let trafficHeaderBg = res.riskLevel === 'red' ? 'bg-rose-600 text-white' : (res.riskLevel === 'yellow' ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white');
+      let trafficBadgeText = res.riskLevel === 'red' ? '🚨 重度注意・アレルギー有' : (res.riskLevel === 'yellow' ? '⚠️ 観察注意事項あり' : '🟢 正常');
+
+      cardContainer.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="${trafficHeaderBg} px-4 py-2.5 flex items-center justify-between font-bold text-xs">
+            <span>${trafficBadgeText}</span><span class="bg-black/20 px-2 py-0.5 rounded font-mono">ID: ${res.id}</span>
+          </div>
+          <div class="p-4 space-y-3">
+            <h3 class="font-extrabold text-xl text-slate-900">${res.name}</h3>
+            <div class="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-800 font-medium">⭐ 知恵: ${res.wisdomNote}</div>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600">🛡️ 注意: ${res.allergies.join(', ')}</div>
+            <button onclick="switchTab('tab-medication')" class="w-full bg-slate-800 text-teal-300 font-bold text-xs py-3 rounded-xl"><i class="fa-solid fa-pills"></i> この利用者の服薬チェックへ進む</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function syncMedicationTab() {
+      const container = document.getElementById('medicationContent');
+      if (!appState.activeResidentKey) { 
+        container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">先に①照会タブでQRコードを照合してください</p>`; 
+        return; 
+      }
+      const res = appState.residents[appState.activeResidentKey];
+      const isAlreadyVerified = res.medVerified;
+
+      container.innerHTML = `
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between text-xs">
+          <div><p class="text-slate-500">対象者</p><p class="font-bold text-slate-800">${res.name}</p></div>
+          <div class="text-right"><p class="text-slate-500">本日処方</p><p class="font-bold text-teal-700">${res.prescription}</p></div>
+        </div>
+        <div class="pt-4 text-center space-y-3">
+          <p class="font-bold text-slate-700 text-xs">【3秒間長押し】して服薬完了を確認</p>
+          <button id="holdButton" class="prevent-ios-select w-full py-8 ${isAlreadyVerified ? 'bg-emerald-600' : 'bg-teal-600'} text-white font-extrabold rounded-2xl text-lg shadow-lg relative overflow-hidden">
+            <span id="holdText" class="relative z-10">${isAlreadyVerified ? '✅ 服薬確認済み' : '3秒 長押し確認'}</span>
+            <div id="holdProgress" class="absolute top-0 left-0 bottom-0 bg-teal-800/50 w-0 transition-all duration-75"></div>
+          </button>
+          <div id="verificationResult" class="${isAlreadyVerified ? '' : 'hidden'} bg-emerald-100 border border-emerald-500 rounded-xl p-3 text-emerald-900 font-bold text-xs">✅ 服薬完了を確認しました</div>
+        </div>
+      `;
+
+      setTimeout(() => {
+        const btn = document.getElementById('holdButton');
+        if (btn && !isAlreadyVerified) {
+          btn.addEventListener('touchstart', startHold, { passive: false });
+          btn.addEventListener('touchend', cancelHold, { passive: false });
+          btn.addEventListener('touchcancel', cancelHold, { passive: false });
+          btn.addEventListener('mousedown', startHold);
+          btn.addEventListener('mouseup', cancelHold);
+          btn.addEventListener('mouseleave', cancelHold);
+        }
+      }, 50);
+    }
+
+    let holdTimer = null, holdStartTime = 0;
+
+    function startHold(e) {
+      if (e && e.cancelable) e.preventDefault();
+      if (appState.residents[appState.activeResidentKey]?.medVerified) return;
+
+      holdStartTime = Date.now();
+      const progressBar = document.getElementById('holdProgress');
+      const textSpan = document.getElementById('holdText');
+
+      if (holdTimer) clearInterval(holdTimer);
+
+      holdTimer = setInterval(() => {
+        const elapsed = Date.now() - holdStartTime;
+        const progress = Math.min((elapsed / 3000) * 100, 100);
+        if (progressBar) progressBar.style.width = progress + '%';
+
+        if (elapsed >= 3000) {
+          clearInterval(holdTimer);
+          holdTimer = null;
+          appState.residents[appState.activeResidentKey].medVerified = true;
+          if (textSpan) textSpan.textContent = '✅ 服薬確認済み';
+          const btn = document.getElementById('holdButton');
+          if (btn) {
+            btn.classList.remove('bg-teal-600');
+            btn.classList.add('bg-emerald-600');
+          }
+          const resContainer = document.getElementById('verificationResult');
+          if (resContainer) resContainer.classList.remove('hidden');
+          if (navigator.vibrate) navigator.vibrate(200);
+        }
+      }, 50);
+    }
+
+    function cancelHold(e) {
+      if (appState.residents[appState.activeResidentKey]?.medVerified) return;
+      if (holdTimer) {
+        clearInterval(holdTimer);
+        holdTimer = null;
+      }
+      const progressBar = document.getElementById('holdProgress');
+      if (progressBar) progressBar.style.width = '0%';
+    }
+
+    function toggleVoiceInput() {
+      const input = document.getElementById('memoInput'), resName = appState.activeResidentKey ? appState.residents[appState.activeResidentKey].name : '全体';
+      input.value = `【音声入力】${resName}: 本日状態良好、処方通りの服薬を確認しました。`;
+      updateAiAnalysis();
+    }
+
+    function updateAiAnalysis() {
+      const val = document.getElementById('memoInput').value;
+      document.getElementById('aiSummaryText').textContent = val ? "・" + val : "要約結果がここに表示されます...";
+    }
+
+    function saveNoteToTimeline() {
+      const text = document.getElementById('memoInput').value;
+      if (!text) return;
+      const res = appState.activeResidentKey ? appState.residents[appState.activeResidentKey] : { name: "全体" };
+      appState.timeline.unshift({ residentName: res.name, text: text, timestamp: new Date().toLocaleTimeString().slice(0,5) });
+      renderTimeline(); document.getElementById('memoInput').value = ''; alert('保存しました！');
+    }
+
+    function renderTimeline() {
+      document.getElementById('timelineContainer').innerHTML = appState.timeline.map(i => `<div class="p-2 bg-slate-100 rounded text-xs"><strong>${i.residentName}</strong> (${i.timestamp})<p>${i.text}</p></div>`).join('') || '<p class="text-xs text-slate-400">記録なし</p>';
+    }
+
+    function generateDailyReport() {
+      document.getElementById('reportStaff').textContent = appState.currentStaff;
+      const verifiedCount = Object.values(appState.residents).filter(r => r.medVerified).length;
+      document.getElementById('reportMedStatus').textContent = `3名中 ${verifiedCount}名 完了`;
+    }
+  </script>
+</body>
+</html>
